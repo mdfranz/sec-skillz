@@ -2,9 +2,7 @@ import sys
 import orjson
 from collections import Counter
 
-HOST = "192.168.4.49"
-
-def analyze_logs(file_paths):
+def analyze_logs(host, file_paths):
     outbound_ports = Counter()
     inbound_ports = Counter()
     protocols = Counter()
@@ -25,7 +23,7 @@ def analyze_logs(file_paths):
                     src_ip = record.get("src_ip")
                     dest_ip = record.get("dest_ip")
                     
-                    if src_ip != HOST and dest_ip != HOST:
+                    if src_ip != host and dest_ip != host:
                         continue
                         
                     # Protocol
@@ -33,7 +31,7 @@ def analyze_logs(file_paths):
                         protocols[record["proto"]] += 1
                         
                     # Ports
-                    if src_ip == HOST:
+                    if src_ip == host:
                         # Outbound traffic, interested in where it's going
                         if "dest_port" in record:
                             outbound_ports[record["dest_port"]] += 1
@@ -60,7 +58,7 @@ def analyze_logs(file_paths):
         except Exception as e:
             print(f"Error processing {file_path}: {e}", file=sys.stderr)
 
-    print(f"Profile for Host: {HOST}")
+    print(f"Profile for Host: {host}")
     print("-" * 30)
     
     print("\nTop Protocols:")
@@ -80,8 +78,8 @@ def analyze_logs(file_paths):
         print(f"  {site}: {count}")
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python profile_host.py <log_file1> [log_file2 ...]")
+    if len(sys.argv) < 3:
+        print("Usage: python profile_host.py <host_ip> <log_file1> [log_file2 ...]")
         sys.exit(1)
     
-    analyze_logs(sys.argv[1:])
+    analyze_logs(sys.argv[1], sys.argv[2:])
