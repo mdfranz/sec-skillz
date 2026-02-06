@@ -1,0 +1,8 @@
+{
+  "skills": {
+    "disabled": [
+      "suricata-analyst",
+      "cloudtrail-analyst"
+    ]
+  }
+}

@@ -2,28 +2,7 @@
 
 This document outlines research findings on methods for writing detections in AWS CloudTrail, the format of CloudTrail events, and strategies for searching large volumes of security events.
 
-## 1. CloudTrail Detection Methods
-
-Effective threat detection in AWS relies on analyzing CloudTrail logs to identify suspicious activities. Key methods include:
-
-### Native AWS Services
-*   **Amazon CloudWatch Logs:**
-    *   **Real-time Monitoring:** Ingest CloudTrail logs to create metric filters and alarms for specific patterns (e.g., failed logins `ConsoleLogin` failures).
-    *   **Pattern Matching:** Use filter patterns to trigger alerts on critical API calls.
-*   **Amazon GuardDuty:**
-    *   **Threat Detection Service:** Continuously monitors CloudTrail management events (along with VPC Flow Logs and DNS logs).
-    *   **Findings:** Automatically detects compromised instances, cryptocurrency mining, and unauthorized access using machine learning and threat intelligence.
-*   **AWS Security Hub:**
-    *   **Centralized View:** Aggregates findings from GuardDuty, Macie, Inspector, and CloudTrail to provide a comprehensive security posture view.
-*   **CloudTrail Insights:**
-    *   **Anomaly Detection:** Automatically identifies unusual operational activity (e.g., spikes in resource provisioning or bursts of IAM actions) by comparing recent activity against a historical baseline.
-
-### Behavioral & Advanced Techniques
-*   **Baseline Analysis:** Establishing a "normal" baseline for API usage (time of day, frequency, user agent, geographic location) to detect deviations.
-*   **Decoy Services (Canaries/Honeypots):** Deploying fake resources (e.g., an attractive but unused S3 bucket or IAM role). Any CloudTrail activity involving these resources is a high-fidelity alert.
-*   **Correlation:** Linking multiple low-severity events (e.g., `ListBuckets` followed by `GetObject` from an unusual IP) to identify complex attack chains.
-
-## 2. CloudTrail Event Format
+## CloudTrail Event Format
 
 CloudTrail log files are stored in Amazon S3 as gzipped JSON files. Each file contains a root `Records` array, where each object represents a single API call or event.
 
@@ -34,10 +13,13 @@ CloudTrail log files are stored in Amazon S3 as gzipped JSON files. Each file co
 *   **`awsRegion`**: Region where the event occurred.
 *   **`sourceIPAddress`**: IP address of the requester.
 *   **`userAgent`**: Application or agent used to make the request.
+*   **`vpcEndpointId`**: The ID of the VPC endpoint used for the request (critical for private API security).
+*   **`recipientAccountId`**: The account ID that received the request (useful for cross-account analysis).
 *   **`userIdentity`**: Detailed object containing information about the caller:
     *   `type`: (e.g., `IAMUser`, `AssumedRole`, `Root`).
     *   `arn`: The Amazon Resource Name of the principal.
     *   `accountId`: AWS account ID.
+    *   `sessionContext`: Contains session attributes, including `attributes.mfaAuthenticated` (was MFA used?) and `sessionIssuer` (who assumed the role).
 *   **`requestParameters`**: Parameters sent with the API request (useful for deep inspection).
 *   **`responseElements`**: Elements returned by the service (e.g., `instanceId` of a created EC2 instance).
 *   **`errorCode` / `errorMessage`**: Present if the API call failed (crucial for detecting brute force or unauthorized attempts).
@@ -45,21 +27,9 @@ CloudTrail log files are stored in Amazon S3 as gzipped JSON files. Each file co
 ### Event Categories
 1.  **Management Events:** Control plane operations (e.g., configuring security groups, creating users). Logged by default.
 2.  **Data Events:** Data plane operations (e.g., S3 object `GetObject`, Lambda function invocation). High volume; must be explicitly enabled.
-3.  **Insights Events:** Anomalies detected by CloudTrail Insights.
+3.  **Network Activity Events:** (Newer) Records AWS API calls made to your VPC endpoints from a private VPC. Useful for detecting lateral movement or unauthorized VPC usage.
+4.  **Insights Events:** Anomalies detected by CloudTrail Insights.
 
-## 3. Searching Large Datasets
-
-Searching through terabytes of JSON logs in S3 directly is inefficient. The following tools and strategies are recommended for large-scale analysis.
-
-### Tools
-*   **SQL Query Engine (Athena/Trino/Spark SQL/BigQuery External Tables/Snowflake External Tables/etc.):**
-    *   **Ad-hoc SQL over logs:** Query CloudTrail data stored in object storage (commonly S3) using SQL.
-    *   **Cost/perf tradeoffs vary:** Most engines charge by data scanned, compute time, or both.
-*   **AWS CloudTrail Lake:**
-    *   **Managed Data Lake:** Aggregates events across regions and accounts into an immutable event store.
-    *   **SQL Support:** Supports SQL-based queries for auditing and security analysis.
-*   **AWS CloudWatch Logs Insights:**
-    *   **Interactive Search:** Good for recent log data (weeks/months) with a specialized query syntax.
 
 ### Optimization Strategies for SQL Queries
 *   **Partitioning & Partition Pruning:** Organize data by common predicates (e.g., `account`, `region`, `year/month/day`). Ensure queries filter on those fields so the engine can skip irrelevant partitions. (In Athena, this is often implemented via partition projection.)
@@ -68,9 +38,7 @@ Searching through terabytes of JSON logs in S3 directly is inefficient. The foll
 *   **Pre-Parse / Flatten Common Fields:** Materialize frequently-used fields (e.g., `eventName`, `eventSource`, `userIdentity.arn`, `sourceIPAddress`, `errorCode`) into columns to avoid repeated JSON extraction cost.
 *   **Be Careful with Regex and Wildcards:** Prefer exact matches and anchored patterns; avoid leading wildcards (e.g., `LIKE '%foo'`) when possible.
 
-## 4. SQL Query Examples for Security
-
-Assuming a table named `cloudtrail_logs`:
+##  SQL Query Examples for Security
 
 Note: CloudTrail fields are often nested JSON. Adjust field access (`userIdentity.arn`) and timestamp parsing to match your SQL engine and table schema (struct vs JSON string vs flattened columns). If `eventTime` is stored as an ISO-8601 string, string comparison against an ISO-8601 literal is usually sufficient for time filtering.
 
@@ -125,7 +93,7 @@ WHERE eventName = 'ConsoleLogin'
 ORDER BY eventTime DESC;
 ```
 
-## 5. Potential Detection Signatures (CloudTrail)
+## Potential Detection Signatures (CloudTrail)
 
 Below are additional high-signal event patterns (“signatures”) that are commonly useful for CloudTrail-based detections. Treat these as starting points: tune by account, principal, region, and expected automation.
 
@@ -175,12 +143,22 @@ Below are additional high-signal event patterns (“signatures”) that are comm
 
 ### Data Exposure / Public Access Changes
 *   **S3 public exposure:**
-    *   `s3.amazonaws.com`: `PutBucketAcl`, `PutBucketPolicy`, `PutBucketPublicAccessBlock`, `DeleteBucketPublicAccessBlock`
-    *   **Signature idea:** bucket policy includes public principal (`"Principal":"*"`) or ACL grants to `AllUsers`/`AuthenticatedUsers`.
+    *   `s3.amazonaws.com`: `PutBucketAcl`, `PutBucketPolicy`, `PutBucketPublicAccessBlock`, `DeleteBucketPublicAccessBlock`, `PutBucketWebsite`
+    *   **Signature idea:** bucket policy includes public principal (`"Principal":"*"`) or ACL grants to `AllUsers`/`AuthenticatedUsers`. `PutBucketWebsite` enables static hosting, potentially for phishing/malware.
 *   **Snapshot / image sharing (exfil path):**
     *   `ec2.amazonaws.com`: `ModifySnapshotAttribute`, `ModifyImageAttribute`
     *   `rds.amazonaws.com`: `ModifyDBSnapshotAttribute`
     *   **Signature idea:** snapshot/image made public or shared to an unexpected account.
+
+### S3 Ransomware & Data Destruction
+*   **Lifecycle rule abuse (fast deletion):**
+    *   `s3.amazonaws.com`: `PutLifecycleConfiguration`
+    *   **Signature idea:** Rule created to expire objects in < 1 day or transition to inaccessible storage classes immediately.
+*   **Versioning suspension (pre-deletion):**
+    *   `s3.amazonaws.com`: `PutBucketVersioning`
+    *   **Signature idea:** Status set to `Suspended` followed by mass `DeleteObject` calls (if Data Events enabled).
+*   **Replication disabling (prevent backups):**
+    *   `s3.amazonaws.com`: `DeleteBucketReplication`
 
 ### Key Management (Ransomware / Cover Tracks / Data Lockout)
 *   **KMS key disruption:**
@@ -209,8 +187,14 @@ Below are additional high-signal event patterns (“signatures”) that are comm
 ### Useful Metadata Fields for Signature Quality
 *   **`readOnly`**: Helps separate recon (`true`) from change actions (`false`).
 *   **`userIdentity.sessionContext.sessionIssuer.arn`**: The role/user issuing an assumed-role session (critical for STS analysis).
-*   **`additionalEventData`**: Can contain useful auth context for some events (e.g., console logins).
-*   **`tlsDetails`**: Useful when you need TLS version/cipher context or to validate client behavior.
+*   **`additionalEventData`**: Context-specific data. Examples:
+    *   `MFAUsed`: "Yes"/"No" for console logins.
+    *   `LoginTo`: URL of the console login destination.
+    *   `MobileVersion`: If the mobile app was used.
+*   **`tlsDetails`**:
+    *   `tlsVersion`: e.g., "TLSv1.2", "TLSv1.3". Detect old/insecure clients.
+    *   `cipherSuite`: The crypto suite used.
+    *   `clientProvidedHostHeader`: Can help identify the true target of a request or potential spoofing.
 
 ### Example SQL Queries (Additional)
 
