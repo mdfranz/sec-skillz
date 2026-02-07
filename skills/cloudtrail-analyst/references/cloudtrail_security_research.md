@@ -196,7 +196,61 @@ Below are additional high-signal event patterns (“signatures”) that are comm
     *   `cipherSuite`: The crypto suite used.
     *   `clientProvidedHostHeader`: Can help identify the true target of a request or potential spoofing.
 
-### Example SQL Queries (Additional)
+## DuckDB Implementation Patterns
+
+DuckDB is exceptionally fast for CloudTrail analysis because it can handle nested JSON and gzipped files natively.
+
+### Efficient Ingestion (Gzipped JSON)
+```sql
+-- Create a table directly from gzipped CloudTrail files
+CREATE TABLE cloudtrail_raw AS 
+SELECT * FROM read_json_auto('data/*.json.gz', records=true);
+
+-- Flatten common fields into a view for easier analysis
+CREATE VIEW events AS
+SELECT
+    eventTime,
+    eventName,
+    eventSource,
+    awsRegion,
+    sourceIPAddress,
+    userIdentity.type AS user_type,
+    userIdentity.arn AS user_arn,
+    userIdentity.sessionContext.sessionIssuer.arn AS role_arn,
+    errorCode,
+    errorMessage,
+    requestParameters,
+    responseElements
+FROM cloudtrail_raw,
+UNNEST(Records) AS t(Records); -- If the JSON isn't pre-flattened
+```
+
+### Hunting for Lateral Movement (AssumeRole Chains)
+```sql
+SELECT 
+    eventTime, 
+    user_arn, 
+    requestParameters->>'roleArn' AS assumed_role,
+    sourceIPAddress
+FROM events 
+WHERE eventName = 'AssumeRole'
+ORDER BY eventTime;
+```
+
+### Finding Sensitive Data Exfiltration (S3)
+```sql
+SELECT 
+    eventTime, 
+    user_arn, 
+    requestParameters->>'bucketName' AS bucket,
+    requestParameters->>'key' AS object_key
+FROM events 
+WHERE eventSource = 's3.amazonaws.com' 
+  AND eventName IN ('GetObject', 'PutBucketPolicy')
+ORDER BY eventTime;
+```
+
+## Example SQL Queries (Additional)
 
 #### CloudTrail Logging Tampering
 ```sql
