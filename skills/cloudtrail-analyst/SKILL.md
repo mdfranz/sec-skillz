@@ -1,58 +1,63 @@
 ---
 name: cloudtrail-analyst
-description: Analyzes AWS CloudTrail logs using Python, DuckDB, and jq, emphasizing performance, persistence, and structured logging.
+description: Analyzes AWS CloudTrail logs to identify security anomalies, unauthorized API calls, and privilege escalation. Use when a user provides CloudTrail logs, asks for AWS security analysis, or needs to hunt for suspicious IAM activity and resource tampering.
+metadata:
+  author: "Security Engineering Team"
+  version: "1.1.0"
+  tags: ["aws", "cloudtrail", "forensics", "iam", "cloud-security"]
 ---
 
 # CloudTrail Log Analysis
 
-## Overview
+## Instructions
 
-Amazon CloudTrail is a service that enables governance, compliance, operational auditing, and risk auditing of your AWS accounts. CloudTrail logs all AWS Management Console sign-in events, AWS SDKs and command-line tool calls, and calls made to the AWS APIs by using the AWS Management Console, AWS SDKs, command-line tools, and other software.
+### Step 1: Ingestion and Flattening
+1.  **Understand Source**: CloudTrail logs are nested JSON. Refer to `references/cloudtrail_format.md` for field mapping.
+2.  **Flatten for Analysis**: Use `jq` to convert the `Records` array into JSONL format for easier processing.
+    ```bash
+    cat *.json | jq -c '.Records[]' > flattened.jsonl
+    ```
+3.  **DuckDB Setup**: Ingest the flattened data into DuckDB for high-performance SQL querying.
+    ```python
+    import duckdb
+    con = duckdb.connect('analysis.db')
+    con.execute("CREATE TABLE events AS SELECT * FROM read_json_auto('flattened.jsonl')")
+    ```
 
-By using CloudTrail, you can detect unusual activity in your AWS environment, such as unexpected changes to security groups or IAM users, as well as identify potential security threats. For example, you can use CloudTrail to detect and respond to unauthorized access attempts, unauthorized changes to resources, or suspicious activity in your AWS accounts. Additionally, CloudTrail can be used to create audit trails of resource changes and to ensure compliance with internal policies and industry regulations.
+### Step 2: Investigation
+1.  **Identify Anomalies**: Search for `errorCode` spikes or unauthorized operations.
+2.  **Trace Principals**: Follow the `userIdentity.arn` and `role_arn` to map the scope of an incident.
+3.  **Document Actions**: Capture all commands and findings in `analyst_log-YY-MM-DD-HH-MM.md`.
 
-When using AWS CloudTrail, it can be helpful to import certain types of logs in order to perform security analysis. 
+## Working Agreements
+- **Persistence**: Save confident data as a persistent `.db` file. Do not delete scripts (`analyze_[topic].py`).
+- **Memory Safety**: Use `polars.scan_ndjson()` or DuckDB disk spilling for large datasets to prevent OOM.
+- **No Analogies**: Keep technical explanations direct and professional.
 
-When downloaded to a local filesystem CloudTrail can be very effective in hunting for threats. This skill provides guidance on how to do local analysis of compressed JSON log sources that have been retrieved from S3.
+## Examples
 
-## General Instructions
-- Perform web searches for AWS CloudTrail file format to help parse and understand the content of the cloud events.
-- Review references for guidance on how to search for attack patterns
-- Create a time-stamped markdown file for any work performed (`analyst_log-YY-MM-DD-HH-MM.md`) to capture analysis steps and sample data.
-- Create persistent scripts for all but the most trivial tasks using the naming convention `analyze_[topic].py` or `parse_[topic].sh`. Do not remove any scripts after creation.
-- Do not clean up temporary output from analyst scripts; rename them with a suffix of `YY-MM-DD-HH-MM.md`.
-- **Prevent Out of Memory (OOM) errors**, particularly on low-resource systems:
-    - **DuckDB**: Use DuckDB as the primary engine for large data; it handles disk spilling automatically. Set `PRAGMA memory_limit='2GB'` (adjust as needed) to constrain usage.
-    - **Streaming & Chunking**: Use `polars.scan_ndjson()` for lazy loading or Python generators to process files record-by-record. Avoid `json.load()` on massive files.
-    - **Pre-reduction**: Use `jq` to filter and flatten data *before* ingesting into Python/Pandas.
-- Do NOT use analogies to explain concepts.
-- Ensure all analysis files are in `.md` format.
+### Example 1: Hunting for Unauthorized Discovery
+**User says**: "Search for any 'Access Denied' errors in the last log batch."
+**Action**:
+1. Query for events where `errorCode` is `AccessDenied` or `Client.UnauthorizedOperation`.
+2. Group by `eventName` and `userIdentity.arn` to find the most aggressive principal.
 
-## Quick Start
-- Initialize environment: `uv venv && source .venv/bin/activate`
-- Install dependencies: `uv pip install duckdb orjson polars pandas matplotlib`
+### Example 2: Detecting Log Tampering
+**User says**: "Did anyone try to disable CloudTrail?"
+**Action**:
+1. Search for `StopLogging`, `DeleteTrail`, or `UpdateTrail` in the `eventName` field.
+2. Identify the `sourceIPAddress` and `userAgent` of the requester.
 
-## Common Recipes
+## Troubleshooting
 
-### jq: Flatten CloudTrail Records
-```bash
-cat *.json | jq -c '.Records[]' > flattened.jsonl
-```
+### Error: "DuckDB Out of Memory"
+**Cause**: Loading massive raw JSON files into memory.
+**Solution**: Set `PRAGMA memory_limit='2GB'` and use DuckDB's native JSON reader which supports disk spilling.
 
-### DuckDB: Direct Ingestion
-```python
-import duckdb
-con = duckdb.connect('analysis.db')
-con.execute("CREATE TABLE events AS SELECT * FROM read_json_auto('*.json', format='auto', records='true')")
-```
+### Error: "Missing Records"
+**Cause**: Searching in Management Events for Data Event activity (e.g., S3 `GetObject`).
+**Solution**: Verify if Data Events were enabled in the trail configuration. Check `references/cloudtrail_security_research.md` for event categories.
 
-## Python Coding Style
-- Use Python or `jq` to parse and analyze log files.
-- Use Python `duckdb` to ingest and analyze data. Save confident data as a persistent `.db` file in the current directory.
-- Review existing Python code in the current directory before writing new code to solve problems.
-- Use `uv` to create virtual environments and install libraries. Maintain a `requirements.txt` file.
-- Use `orjson` instead of the built-in `json` library for better performance.
-- Use Python `polars` to convert JSON to parquet if needed.
-- Use Python `pandas` for statistical analysis if beneficial.
-- Create visualizations as `.png` files with meaningful, space-free filenames.
-- Use `sys.argv` for command-line arguments instead of `argparse` to keep syntax simple. Do not hardcode filenames.
+### Error: "Invalid JSON format"
+**Cause**: CloudTrail files are often gzipped or contain a single `Records` object rather than JSONL.
+**Solution**: Use `zcat` for gzipped files and the `jq` flattening recipe in Step 1.

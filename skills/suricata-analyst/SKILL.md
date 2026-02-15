@@ -1,40 +1,63 @@
 ---
 name: suricata-analyst
-description: Analyzes Suricata EVE JSON logs using Python, DuckDB, polars, and jq, emphasizing performance, persistence, and structured logging.
+description: Analyzes Suricata EVE JSON logs to identify network threats, suspicious egress, and protocol anomalies. Use when a user provides eve.json logs, asks for network traffic analysis, or needs to hunt for C2 beaconing and data exfiltration.
+metadata:
+  author: "Security Engineering Team"
+  version: "1.1.0"
+  tags: ["suricata", "nsm", "threat-hunting", "network-security"]
 ---
 
 # Suricata (EVE) Analyst
 
-## Scope and Constraints
-- Expect Suricata EVE logs (JSON lines) under the current directory.
-- Logs may be larger than tool/file limits; avoid loading entire files into memory.
-- Prefer sampling (`head`) and targeted filtering (`jq`, `rg`) to understand schema and pick relevant `event_type` values.
+## Instructions
+
+### Step 1: Initial Discovery
+1.  **Sample the Data**: Always begin by sampling the logs to understand the schema and volume.
+    ```bash
+    head -n 5 eve.json | jq .
+    ```
+2.  **Identify Event Types**: Determine which protocols are present.
+    ```bash
+    jq -r .event_type eve.json | sort | uniq -c | sort -nr
+    ```
+3.  **Consult References**: For detailed field mapping, refer to `references/eve_format.md` and `references/suricata_eve_analysis.md`.
+
+### Step 2: Targeted Analysis
+1.  **Filter Noise**: Ignore `stats` events and focus on external traffic.
+2.  **Create Persistence**: Use Python and DuckDB for complex queries. Refer to `original/ndr/suricata/` for existing script patterns.
+3.  **Document Findings**: Maintain an `analyst_log-YY-MM-DD_HH-MM.md` file for every session.
 
 ## Working Agreements
-- Do not delete scripts after creating them.
-- Before writing new code, check whether an existing script in the current directory already solves (or nearly solves) the task.
-- Keep intermediate outputs; do not "clean up" by deleting them.
-  - If you generate a throwaway output file, rename it to include a timestamp suffix like `-YY-MM-DD_HH-MM.md` (or similar) instead of deleting it.
+- **No Deletions**: Do not delete scripts or intermediate output files.
+- **Timestamping**: Rename throwaway files with a `-YY-MM-DD_HH-MM.md` suffix.
+- **Python Style**: Use `orjson`, `polars`, and `duckdb`. Use `uv` for environment management.
 
-## Analyst Notes (Required)
-- For each analysis task, create a timestamped Markdown log capturing:
-  - What you did (commands/scripts and parameters)
-  - What you looked for / why
-  - Small, representative samples of the data (not exhaustive)
-- Naming convention: `analyst_log-YY-MM-DD_HH-MM.md` (prefer UTC).
+## Examples
 
-## Suricata (EVE) File Format
-- Treat the EVE file as JSON Lines (one JSON object per line).
-- Usually ignore `event_type: "stats"` for threat-hunting (it is operational telemetry, not traffic details).
-- Focus on public destination IPs (not RFC1918) when looking for suspicious egress.
-- High-signal `event_type` values for egress analysis often include:
-  - `dns`, `tls`, `quic`, `http`, `flow`, and `alert` (when present)
+### Example 1: Hunting for Rare SNIs
+**User says**: "Check for suspicious TLS connections."
+**Action**:
+1. Filter for `event_type: "tls"`.
+2. Extract `tls.sni` and count occurrences.
+3. Highlight SNIs that appear fewer than 3 times across the dataset.
 
-## Coding Style
-- Use Python or `jq` to parse and analyze logs as needed.
-- Use `orjson` instead of the built-in `json` library.
-- Use `polars` to transform JSON -> Parquet when needed.
-- Use `duckdb` to query Parquet efficiently.
-- Use `uv` (not `pip`) for virtualenvs and dependency installs.
-- Do not hardcode filenames; take input paths from `sys.argv` (avoid `argparse` unless the user requests it).
-- Create a virtual environment with `uv` and maintain a `requirements.txt` file so you have all the libraries you need
+### Example 2: Volume-based Exfiltration
+**User says**: "Find any hosts sending large amounts of data to the internet."
+**Action**:
+1. Query `event_type: "flow"`.
+2. Sum `bytes_toserver` by `src_ip` where `dest_ip` is external.
+3. Calculate Producer-Consumer Ratio (PCR).
+
+## Troubleshooting
+
+### Error: "Invalid JSON" or "Line Truncated"
+**Cause**: The EVE log might have been cut off during a copy or crash.
+**Solution**: Use `jq` to validate the file or a script that handles `JSONDecodeError` gracefully by skipping malformed lines.
+
+### Error: "DuckDB Out of Memory"
+**Cause**: Ingesting extremely large JSON files without streaming.
+**Solution**: Convert the JSON to Parquet using `polars.scan_ndjson()` first, then query the Parquet file with DuckDB.
+
+### Error: "No alerts found"
+**Cause**: The log might only contain metadata, or the signature engine wasn't triggered.
+**Solution**: Pivot to protocol-based hunting (DNS/TLS) using `references/suricata_eve_analysis.md` for inspiration.
