@@ -8,6 +8,7 @@ See the following reference
 - [Creating Agent Skills](https://geminicli.com/docs/cli/creating-skills/) and [Extend Claude with Skills](https://code.claude.com/docs/en/skills)
 - [Beyond Prompt Engineering: Using Agent Skills in Gemini CLI](https://medium.com/google-cloud/beyond-prompt-engineering-using-agent-skills-in-gemini-cli-04d9af3cda21) 
 - [Gemini CLI Adds Agent Skills And Your Terminal Starts Acting Like An Agent Runtime](https://medium.com/the-context-layer/gemini-cli-adds-agent-skills-and-your-terminal-starts-acting-like-an-agent-runtime-63a5d9cb0371)
+- [The Complete Guide to Building Skills for Claude](https://resources.anthropic.com/hubfs/The-Complete-Guide-to-Building-Skill-for-Claude.pdf?hsLang=en)
 
 ## Available Skills
 
