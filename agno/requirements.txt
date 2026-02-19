@@ -1,0 +1,9 @@
+agno
+anthropic
+google-generativeai
+google-genai
+duckdb
+polars
+orjson
+jq
+pyyaml

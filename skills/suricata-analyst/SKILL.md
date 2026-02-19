@@ -31,6 +31,7 @@ metadata:
 - **No Deletions**: Do not delete scripts or intermediate output files.
 - **Timestamping**: Rename throwaway files with a `-YY-MM-DD_HH-MM.md` suffix.
 - **Python Style**: Use `orjson`, `polars`, and `duckdb`. Use `uv` for environment management.
+- **Script Naming**: All scripts should start with suricata_ (for example, `suricata_analyze_stats.py`)
 
 ## Examples
 
