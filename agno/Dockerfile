@@ -1,5 +1,5 @@
 # Stage 1: Builder
-FROM python:3.12-slim-bookworm AS builder
+FROM python:3.13-slim-bookworm AS builder
 
 WORKDIR /app
 
@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     autoconf \
     libtool \
     automake \
+    whois \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv (using the official image is the cleanest way)
@@ -25,7 +26,7 @@ RUN uv venv /app/.venv && \
 
 
 # Stage 2: Runtime
-FROM python:3.13-slim
+FROM python:3.13-slim-bookworm
 
 WORKDIR /app
 
