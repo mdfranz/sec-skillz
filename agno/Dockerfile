@@ -13,16 +13,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     whois \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv (using the official image is the cleanest way)
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
-
 # Copy requirements file
 COPY requirements.txt .
 
 # Create virtual environment and install dependencies
 # We use a virtual env so we can easily copy it to the next stage
-RUN uv venv /app/.venv && \
-    uv pip install --no-cache -r requirements.txt
+# Install uv into the venv so `python -m uv` works at runtime.
+RUN python -m venv /app/.venv && \
+    /app/.venv/bin/pip install --no-cache-dir -r requirements.txt && \
+    /app/.venv/bin/pip install --no-cache-dir uv
 
 
 # Stage 2: Runtime
@@ -33,10 +32,7 @@ WORKDIR /app
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PATH="/app/.venv/bin:$PATH" \
-    GOOGLE_API_KEY="" \
-    ANTHROPIC_API_KEY="" \
-    OPENAI_API_KEY=""
+    PATH="/app/.venv/bin:$PATH"
 
 # Install runtime dependencies
 # 'jq' is specified as a requirement for data analysis pipelines
@@ -66,4 +62,4 @@ VOLUME /app/skills
 USER appuser
 
 # Default entrypoint to the runner script
-ENTRYPOINT ["python", "runner.py"]
+ENTRYPOINT ["/app/.venv/bin/python", "runner.py"]

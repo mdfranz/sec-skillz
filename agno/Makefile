@@ -41,6 +41,16 @@ endif
 ifneq ($(OPENAI_API_KEY),)
     RUN_ARGS += -e OPENAI_API_KEY=$(OPENAI_API_KEY)
 endif
+ifneq ($(USE_VERTEX_AI),)
+    RUN_ARGS += -e USE_VERTEX_AI=$(USE_VERTEX_AI)
+endif
+ifneq ($(GOOGLE_CLOUD_PROJECT),)
+    RUN_ARGS += -e GOOGLE_CLOUD_PROJECT=$(GOOGLE_CLOUD_PROJECT)
+endif
+# Pass ADC credentials if running locally
+ifneq (,$(wildcard ~/.config/gcloud/application_default_credentials.json))
+    RUN_ARGS += -v ~/.config/gcloud/application_default_credentials.json:/root/.config/gcloud/application_default_credentials.json:ro -e GOOGLE_APPLICATION_CREDENTIALS=/root/.config/gcloud/application_default_credentials.json
+endif
 
 run:
 	docker run --rm -it \

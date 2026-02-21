@@ -9,3 +9,5 @@ polars
 orjson
 jq
 pyyaml
+numpy
+pandas

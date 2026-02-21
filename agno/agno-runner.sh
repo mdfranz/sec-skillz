@@ -40,12 +40,21 @@ ENV_VARS=""
 if [ -n "$GOOGLE_API_KEY" ]; then ENV_VARS="$ENV_VARS -e GOOGLE_API_KEY=$GOOGLE_API_KEY"; fi
 if [ -n "$ANTHROPIC_API_KEY" ]; then ENV_VARS="$ENV_VARS -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY"; fi
 if [ -n "$OPENAI_API_KEY" ]; then ENV_VARS="$ENV_VARS -e OPENAI_API_KEY=$OPENAI_API_KEY"; fi
+if [ -n "$USE_VERTEX_AI" ]; then ENV_VARS="$ENV_VARS -e USE_VERTEX_AI=$USE_VERTEX_AI"; fi
+if [ -n "$GOOGLE_CLOUD_PROJECT" ]; then ENV_VARS="$ENV_VARS -e GOOGLE_CLOUD_PROJECT=$GOOGLE_CLOUD_PROJECT"; fi
+
+# Pass GCP application default credentials if they exist
+GCP_CREDS_MOUNT=""
+if [ -f "$HOME/.config/gcloud/application_default_credentials.json" ]; then
+    GCP_CREDS_MOUNT="-v $HOME/.config/gcloud/application_default_credentials.json:/root/.config/gcloud/application_default_credentials.json:ro -e GOOGLE_APPLICATION_CREDENTIALS=/root/.config/gcloud/application_default_credentials.json"
+fi
 
 # Run the Docker container
 # Passes all arguments provided to the script ($@) to the entrypoint
 docker run --rm -it \
     -v "$DATA_DIR":/app/data \
     -v "$SKILLS_DIR":/app/skills \
+    $GCP_CREDS_MOUNT \
     $ENV_FILE_ARGS \
     $ENV_VARS \
     "$IMAGE_NAME" "$@"
