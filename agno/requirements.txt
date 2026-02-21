@@ -1,4 +1,6 @@
-agno
+agno[os]
+fastapi
+uvicorn
 anthropic
 google-generativeai
 google-genai
