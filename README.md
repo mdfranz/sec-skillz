@@ -6,6 +6,42 @@ A collection of specialized agent skills for security analysis. These are design
 <img src="codex.png" width="50%">
 <img src="gemini.png" width="50%">
 
+## Architecture
+
+The repository follows a modular structure where skills are maintained in this repo (`sec-skillz`) and can be integrated into any analysis workspace as a submodule.
+
+```mermaid
+graph TD
+    subgraph Workspace ["Analysis Workspace"]
+        direction TB
+        W_Root["Project Root"]
+        W_Agents[".gemini/ | .claude/ | .codex/"]
+        W_Submodule["sec-skillz/ (Submodule)"]
+        
+        W_Root --> W_Agents
+        W_Root --> W_Submodule
+        W_Agents -- "symlink to" --> S_Dir
+    end
+
+    subgraph SkillRepo ["sec-skillz Repository"]
+        direction TB
+        S_Dir["skills/"]
+        
+        subgraph SkillLayout ["Skill Layout"]
+            SL_Name["{skill-name}/"]
+            SL_Main["SKILL.md"]
+            SL_Refs["references/"]
+            SL_Docs["*.md"]
+            
+            SL_Name --> SL_Main
+            SL_Name --> SL_Refs
+            SL_Refs --> SL_Docs
+        end
+        
+        S_Dir --> SL_Name
+    end
+```
+
 ## Assumptions
 
 There is a separation of your `workspace` (a git repo where you are doing analysis) from the your `skill repo`
