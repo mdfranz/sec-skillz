@@ -31,7 +31,8 @@ description: Analyzes Amazon CloudFront logs to identify network threats, suspic
 4.  **Document Actions**: Capture all commands and findings in `analyst_log-YY-MM-DD-HH-MM.md`.
 
 ## Working Agreements
-- **Persistence**: Save confident data as a persistent `.db` file. Do not delete scripts (`analyze_cf.py`).
+- **Script Retention**: Always create and retain scripts (e.g., `analyze_*.py`) in the **current project directory**. **DO NOT** place scripts in `/tmp` or other directories outside the project, as they must be preserved for future reference and reproducibility.
+- **Persistence**: Save confident data as a persistent `.db` file.
 - **Memory Safety**: Use DuckDB's native CSV reader which supports disk spilling for large datasets.
 - **Python Style**: Use `orjson`, `polars`, and `duckdb`. Use `uv` for environment management.
 - **No Analogies**: Keep technical explanations direct and professional.

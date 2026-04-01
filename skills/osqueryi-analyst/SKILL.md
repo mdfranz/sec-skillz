@@ -37,6 +37,7 @@ metadata:
 3.  **Capture Evidence**: Save all queries and output to a timestamped `analyst_log-YY-MM-DD-HH-MM.md`.
 
 ## Working Agreements
+- **Script Retention**: Always create and retain scripts (e.g., `analyze_*.py`) in the **current project directory**. **DO NOT** place scripts in `/tmp` or other directories outside the project, as they must be preserved for future reference and reproducibility.
 - **Non-Destructive**: osqueryi is read-only — queries cannot modify system state.
 - **No Analogies**: Keep technical explanations direct and professional.
 - **Timestamping**: Always suffix output files with the current date-time.

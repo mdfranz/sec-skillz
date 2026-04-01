@@ -28,7 +28,7 @@ metadata:
 3.  **Document Findings**: Maintain an `analyst_log-YY-MM-DD_HH-MM.md` file for every session.
 
 ## Working Agreements
-- **No Deletions**: Do not delete scripts or intermediate output files.
+- **Script Retention**: Always create and retain scripts (e.g., `analyze_*.py`) in the **current project directory**. **DO NOT** place scripts in `/tmp` or other directories outside the project, as they must be preserved for future reference and reproducibility.
 - **Timestamping**: Rename throwaway files with a `-YY-MM-DD_HH-MM.md` suffix.
 - **Python Style**: Use `orjson`, `polars`, and `duckdb`. Use `uv` for environment management.
 
