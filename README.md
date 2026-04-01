@@ -15,8 +15,8 @@ graph TD
     subgraph Workspace ["Analysis Workspace"]
         direction TB
         W_Root["Project Root"]
-        W_Agents[".gemini/ | .claude/ | .codex/"]
-        W_Submodule["sec-skillz/ (Submodule)"]
+        W_Agents[".gemini | .claude | .codex"]
+        W_Submodule["sec-skillz/ (Git Submodule)"]
         
         W_Root --> W_Agents
         W_Root --> W_Submodule
