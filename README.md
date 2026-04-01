@@ -2,6 +2,10 @@
 
 A collection of specialized agent skills for security analysis. These are designed to work across Claude Code, Gemini CLI, and Codx
 
+<img src="claude.png" width="50%">
+<img src="codex.png" width="50%">
+<img src="gemini.png" width="50%">
+
 ## Assumptions
 
 There is a separation of your `workspace` (a git repo where you are doing analysis) from the your `skill repo`
