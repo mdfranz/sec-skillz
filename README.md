@@ -48,7 +48,7 @@ There is a separation of your `workspace` (a git repo where you are doing analys
 
 Your workspace has your data and report artifacts and tools developed by the skills where you iterate with multiple coding CLIs.
 
-Add submodule for skills repo
+Add submodule for skills repo (use `-b <branch>` if you have a branch)
 
 ```
 git submodule add git@github.com:mdfranz/sec-skillz.git sec-skillz
