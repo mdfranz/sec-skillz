@@ -75,6 +75,8 @@ ln -s ../sec-skillz/skills .gemini/skills
 ln -s ../sec-skillz/skills .codex/skills
 ```
 
+See [skillzeug](https://github.com/mdfranz/skillzeug) that automates this process with error checking.
+
 ## Available Skills
 
 ### CloudFront Analyst
