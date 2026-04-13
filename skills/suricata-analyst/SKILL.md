@@ -3,7 +3,7 @@ name: suricata-analyst
 description: Analyzes Suricata EVE JSON logs to identify network threats, suspicious egress, and protocol anomalies. Use when a user provides eve.json logs, asks for network traffic analysis, or needs to hunt for C2 beaconing and data exfiltration.
 metadata:
   author: "Security Engineering Team"
-  version: "1.1.0"
+  version: "1.2.0"
   tags: ["suricata", "nsm", "threat-hunting", "network-security"]
 ---
 
@@ -11,58 +11,99 @@ metadata:
 
 ## Instructions
 
-### Step 1: Initial Discovery
+### Step 1: Set Up the Environment First
 
-Use Python for initial discovery and data sampling.
+Always initialize a local Python environment with `uv` before reading or transforming EVE logs.
 
-1.  **Sample the Data**: Always begin by sampling the logs to understand the schema and volume.
-    ```bash
-    python3 -c "import json; f=open('eve.json'); [print(json.dumps(json.loads(f.readline()), indent=2)) for _ in range(5)]"
-    ```
-2.  **Identify Event Types**: Determine which protocols are present.
-    ```bash
-    python3 -c "import json, collections; counts = collections.Counter(json.loads(line).get('event_type') for line in open('eve.json')); [print(f'{c:7} {t}') for t, c in counts.most_common()]"
-    ```
-3.  **Consult References**: For detailed field mapping, refer to `references/eve_format.md` and `references/suricata_eve_analysis.md`.
+1. **Create the virtual environment**:
+   ```bash
+   uv venv
+   source .venv/bin/activate
+   ```
+2. **Install the required libraries**:
+   ```bash
+   uv pip install polars orjson
+   ```
+3. **Create reusable scripts in the current working directory**. Do not rely on ad hoc shell one-liners for repeatable analysis.
 
-### Step 2: Targeted Analysis
-1.  **Filter Noise**: Ignore `stats` events and focus on external traffic.
-2.  **Create Persistence**: Use Python and DuckDB for complex queries. Refer to `original/ndr/suricata/` for existing script patterns.
-3.  **Document Findings**: Maintain an `analyst_log-YY-MM-DD_HH-MM.md` file for every session.
+### Step 2: Initial Discovery with `orjson`
+
+Use `orjson` for fast line-by-line inspection and schema sampling before building larger `polars` workflows.
+
+1. **Sample the data**: Create a script such as `sample_eve.py` to inspect a few records without loading the full file.
+   ```python
+   import orjson
+
+   with open("eve.json", "rb") as f:
+       for _ in range(5):
+           line = f.readline()
+           if not line:
+               break
+           print(orjson.dumps(orjson.loads(line), option=orjson.OPT_INDENT_2).decode())
+   ```
+2. **Count event types**: Create a script such as `count_events.py` to see which protocol records are available.
+   ```python
+   import orjson
+   from collections import Counter
+
+   counts = Counter()
+   with open("eve.json", "rb") as f:
+       for line in f:
+           event = orjson.loads(line)
+           counts[event.get("event_type", "unknown")] += 1
+
+   for event_type, count in counts.most_common():
+       print(f"{count:7} {event_type}")
+   ```
+3. **Consult references**: Use `references/eve_format.md` for common fields and `references/suricata_eve_analysis.md` for Polars-based hunting patterns.
+
+### Step 3: Targeted Analysis with `polars`
+
+1. **Filter noise early**: Exclude `stats` events and prioritize `alert`, `dns`, `tls`, `http`, `flow`, and `quic`.
+2. **Use lazy scans for scale**: Prefer `polars.scan_ndjson()` so large `eve.json` files are processed lazily instead of loaded eagerly.
+3. **Persist JSON data as Parquet**: Materialize filtered or flattened datasets to Parquet early so repeated analysis does not require rescanning raw JSON.
+4. **Flatten only what you need**: Select the few nested fields relevant to the hypothesis being tested, then collect just that subset.
+5. **Document findings**: Maintain an `analyst_log-YY-MM-DD_HH-MM.md` file for every session.
 
 ## Working Agreements
-- **Python use of UV**: ALWAYS create a virtual environment with `uv venv`. Install packages with `uv pip install`. Do NOT use `uv run`.
-- **Tool Re-use**: ALWAYS search for and re-use existing tools and scripts in current directory before creating new ones.
-- **Script Retention**: Always create and retain scripts (e.g., `analyze_*.py`) in the **current project directory**. **DO NOT** place scripts in `/tmp` or other directories outside the project, as they must be preserved for future reference and reproducibility.
-- **Timestamping**: Rename throwaway files with a `-YY-MM-DD_HH-MM.md` suffix.
-- **Python Style**: Use `orjson`, `polars`, and `duckdb`. Use `uv` for environment management.
+- **Python environment**: ALWAYS create a virtual environment with `uv venv` and install dependencies with `uv pip install polars orjson`. Do NOT use `uv run`.
+- **Tool re-use**: ALWAYS search for and re-use existing tools and scripts in the current directory before creating new ones.
+- **Script retention**: Always create and retain scripts such as `analyze_*.py` in the current project directory. Do not place analysis scripts in `/tmp`.
+- **Data persistence**: Persist intermediate or normalized EVE datasets to Parquet with `polars` when the analysis will require repeated filtering, grouping, or joins.
+- **Timestamping**: Rename throwaway notes or scratch markdown files with a `-YY-MM-DD_HH-MM.md` suffix.
+- **Python style**: Prefer `orjson` for streaming JSON parsing and `polars` for filtering, aggregations, joins, and exports.
 
 ## Examples
 
 ### Example 1: Hunting for Rare SNIs
 **User says**: "Check for suspicious TLS connections."
 **Action**:
-1. Filter for `event_type: "tls"`.
+1. Filter to `event_type == "tls"` with `polars.scan_ndjson()`.
 2. Extract `tls.sni` and count occurrences.
-3. Highlight SNIs that appear fewer than 3 times across the dataset.
+3. Highlight rare or unique SNIs and correlate them with `src_ip`, `dest_ip`, and JA3 values.
 
 ### Example 2: Volume-based Exfiltration
 **User says**: "Find any hosts sending large amounts of data to the internet."
 **Action**:
-1. Query `event_type: "flow"`.
-2. Sum `bytes_toserver` by `src_ip` where `dest_ip` is external.
-3. Calculate Producer-Consumer Ratio (PCR).
+1. Filter to `event_type == "flow"`.
+2. Persist the filtered flow dataset to Parquet for repeatable analysis.
+3. Sum `flow.bytes_toserver` by `src_ip` for external destinations.
+4. Calculate directional imbalance and flag hosts with high upload volume and repeated external connections.
 
 ## Troubleshooting
 
 ### Error: "Invalid JSON" or "Line Truncated"
-**Cause**: The EVE log might have been cut off during a copy or crash.
-**Solution**: Use a Python script that handles `JSONDecodeError` gracefully by skipping or reporting malformed lines.
+**Cause**: The EVE log may have been cut off during collection or copy.
+**Solution**: Use an `orjson` script that catches decode errors, reports the bad line number, and continues parsing valid records.
 
-### Error: "DuckDB Out of Memory"
-**Cause**: Ingesting extremely large JSON files without streaming.
-**Solution**: Convert the JSON to Parquet using `polars.scan_ndjson()` first, then query the Parquet file with DuckDB.
+### Error: "Polars schema mismatch" or missing nested fields
+**Cause**: EVE records are sparse and different `event_type` values expose different nested structures.
+**Solution**: Filter by `event_type` first, then select nested fields with null-tolerant expressions instead of assuming every record shares the same schema.
+
+### Error: "Repeated scans of eve.json are too slow"
+**Cause**: Large NDJSON inputs are being re-read for every aggregation or join.
+**Solution**: Persist the normalized subset to Parquet with `polars` and rerun iterative analysis against the Parquet file instead of the original JSON.
 
 ### Error: "No alerts found"
-**Cause**: The log might only contain metadata, or the signature engine wasn't triggered.
-**Solution**: Pivot to protocol-based hunting (DNS/TLS) using `references/suricata_eve_analysis.md` for inspiration.
+**Cause**: The log may only contain metadata, or Suricata signatures did not trigger.
+**Solution**: Pivot to protocol-based hunting in DNS, TLS, HTTP, and flow records using `references/suricata_eve_analysis.md`.
