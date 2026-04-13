@@ -54,6 +54,14 @@ Add submodule for skills repo
 git submodule add git@github.com:mdfranz/sec-skillz.git sec-skillz
 ```
 
+
+Refresh module
+
+```
+git submodule update --remote --merge
+```
+
+
 Create directories
 
 ```
@@ -84,7 +92,7 @@ ln -s ../sec-skillz/skills .codex/skills
 
 ### Suricata Analyst
 **Location:** `skills/suricata-analyst/`  
-**Description:** Analyzes Suricata EVE JSON logs using Python, DuckDB, polars, and jq to identify network threats, suspicious egress, and protocol anomalies.
+**Description:** Analyzes Suricata EVE JSON logs using Python, DuckDB, and polars to identify network threats, suspicious egress, and protocol anomalies.
 
 # References
 See the following reference

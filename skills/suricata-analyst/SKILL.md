@@ -13,15 +13,15 @@ metadata:
 
 ### Step 1: Initial Discovery
 
-Use JQ only for basic discovery, then move to Python as soon as possible.
+Use Python for initial discovery and data sampling.
 
 1.  **Sample the Data**: Always begin by sampling the logs to understand the schema and volume.
     ```bash
-    head -n 5 eve.json | jq .
+    python3 -c "import json; f=open('eve.json'); [print(json.dumps(json.loads(f.readline()), indent=2)) for _ in range(5)]"
     ```
 2.  **Identify Event Types**: Determine which protocols are present.
     ```bash
-    jq -r .event_type eve.json | sort | uniq -c | sort -nr
+    python3 -c "import json, collections; counts = collections.Counter(json.loads(line).get('event_type') for line in open('eve.json')); [print(f'{c:7} {t}') for t, c in counts.most_common()]"
     ```
 3.  **Consult References**: For detailed field mapping, refer to `references/eve_format.md` and `references/suricata_eve_analysis.md`.
 
@@ -56,7 +56,7 @@ Use JQ only for basic discovery, then move to Python as soon as possible.
 
 ### Error: "Invalid JSON" or "Line Truncated"
 **Cause**: The EVE log might have been cut off during a copy or crash.
-**Solution**: Use `jq` to validate the file or a script that handles `JSONDecodeError` gracefully by skipping malformed lines.
+**Solution**: Use a Python script that handles `JSONDecodeError` gracefully by skipping or reporting malformed lines.
 
 ### Error: "DuckDB Out of Memory"
 **Cause**: Ingesting extremely large JSON files without streaming.
