@@ -84,9 +84,41 @@ for event_type, count in counts.most_common():
 
 Use this count to decide whether the log is best treated as an alert triage set, a protocol metadata hunt, or a flow-focused egress review.
 
-## 3. Building Lazy `polars` Workflows
+## 3. Building Lazy `polars` Workflows: Parquet-First
 
-Prefer `polars.scan_ndjson()` over eager reads for large files. Start by reducing the dataset to the event type and fields needed for the hypothesis.
+Always check the current directory for `.parquet` files before scanning `eve.json`. Iterative analysis on Parquet is significantly faster.
+
+```python
+import polars as pl
+from pathlib import Path
+
+parquet_path = Path("dns.parquet")
+
+if parquet_path.exists():
+    # If the parquet exists, use it directly
+    dns_df = pl.scan_parquet(parquet_path)
+else:
+    # If not, scan the JSON, filter, and persist it immediately
+    dns_df = (
+        pl.scan_ndjson("eve.json")
+        .filter(pl.col("event_type") == "dns")
+        .select(
+            "timestamp", "src_ip", "dest_ip",
+            pl.col("dns").struct.field("rrname").alias("rrname"),
+            pl.col("dns").struct.field("rrtype").alias("rrtype"),
+            pl.col("dns").struct.field("rdata").alias("rdata"),
+        )
+    )
+    # Sink to parquet for future use
+    dns_df.sink_parquet(parquet_path)
+
+# Proceed with analysis on the lazy frame
+print(dns_df.group_by("rrname").len().collect())
+```
+
+### 3.1 Base Scan for Discovery
+
+If you don't know which event family matters yet, start with a base scan to reduce noise.
 
 ```python
 import polars as pl
@@ -107,9 +139,7 @@ base = (
 )
 ```
 
-For deeper hunts, branch from `base` into event-specific frames and add nested columns only when they are present in the target event type.
-
-### 3.1 Persist Filtered JSON to Parquet Early
+### 3.2 Persist Filtered JSON to Parquet Early
 
 When you know which event family matters, write that normalized subset to Parquet so subsequent pivots, joins, and exports do not keep rescanning the original NDJSON file.
 
@@ -132,6 +162,7 @@ flows = (
     )
 )
 
+# Use sink_parquet for better memory efficiency with large datasets
 flows.sink_parquet("flow-events.parquet")
 ```
 

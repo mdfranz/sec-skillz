@@ -59,17 +59,19 @@ Use `orjson` for fast line-by-line inspection and schema sampling before buildin
 
 ### Step 3: Targeted Analysis with `polars`
 
-1. **Filter noise early**: Exclude `stats` events and prioritize `alert`, `dns`, `tls`, `http`, `flow`, and `quic`.
-2. **Use lazy scans for scale**: Prefer `polars.scan_ndjson()` so large `eve.json` files are processed lazily instead of loaded eagerly.
-3. **Persist JSON data as Parquet**: Materialize filtered or flattened datasets to Parquet early so repeated analysis does not require rescanning raw JSON.
-4. **Flatten only what you need**: Select the few nested fields relevant to the hypothesis being tested, then collect just that subset.
-5. **Document findings**: Maintain an `analyst_log-YY-MM-DD_HH-MM.md` file for every session.
+1. **Check for existing Parquet files**: Before scanning `eve.json`, check the current directory for `.parquet` files (e.g., `dns.parquet`, `flow.parquet`). If they exist, use `polars.scan_parquet()` for significantly faster analysis.
+2. **Filter noise early**: If starting from `eve.json`, exclude `stats` events and prioritize `alert`, `dns`, `tls`, `http`, `flow`, and `quic`.
+3. **Use lazy scans for scale**: Prefer `polars.scan_ndjson()` so large `eve.json` files are processed lazily instead of loaded eagerly.
+4. **Persist JSON data as Parquet**: Materialize filtered or flattened datasets to Parquet early (e.g., `df.sink_parquet("dns.parquet")`) so repeated analysis does not require rescanning raw JSON.
+5. **Flatten only what you need**: Select the few nested fields relevant to the hypothesis being tested, then collect just that subset.
+6. **Document findings**: Maintain an `analyst_log-YY-MM-DD_HH-MM.md` file for every session.
 
 ## Working Agreements
 - **Python environment**: ALWAYS create a virtual environment with `uv venv` and install dependencies with `uv pip install polars orjson`. Do NOT use `uv run`.
 - **Tool re-use**: ALWAYS search for and re-use existing tools and scripts in the current directory before creating new ones.
+- **Data-First retrieval**: ALWAYS check for and use existing `.parquet` files in the current directory before rescanning `eve.json`.
 - **Script retention**: Always create and retain scripts such as `analyze_*.py` in the current project directory. Do not place analysis scripts in `/tmp`.
-- **Data persistence**: Persist intermediate or normalized EVE datasets to Parquet with `polars` when the analysis will require repeated filtering, grouping, or joins.
+- **Data persistence**: Persist intermediate or normalized EVE datasets to Parquet with `polars` (e.g., `sink_parquet`) when the analysis will require repeated filtering, grouping, or joins.
 - **Timestamping**: Rename throwaway notes or scratch markdown files with a `-YY-MM-DD_HH-MM.md` suffix.
 - **Python style**: Prefer `orjson` for streaming JSON parsing and `polars` for filtering, aggregations, joins, and exports.
 
