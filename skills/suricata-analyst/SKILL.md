@@ -12,6 +12,9 @@ metadata:
 ## Instructions
 
 ### Step 1: Initial Discovery
+
+Use JQ only for basic discovery, then move to Python as soon as possible.
+
 1.  **Sample the Data**: Always begin by sampling the logs to understand the schema and volume.
     ```bash
     head -n 5 eve.json | jq .
@@ -28,6 +31,7 @@ metadata:
 3.  **Document Findings**: Maintain an `analyst_log-YY-MM-DD_HH-MM.md` file for every session.
 
 ## Working Agreements
+- **Python use of UV**: use `uv` to find the Python interpreter and create virtual environments and install packages with `uv pip install`
 - **Script Retention**: Always create and retain scripts (e.g., `analyze_*.py`) in the **current project directory**. **DO NOT** place scripts in `/tmp` or other directories outside the project, as they must be preserved for future reference and reproducibility.
 - **Timestamping**: Rename throwaway files with a `-YY-MM-DD_HH-MM.md` suffix.
 - **Python Style**: Use `orjson`, `polars`, and `duckdb`. Use `uv` for environment management.
