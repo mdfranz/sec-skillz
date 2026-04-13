@@ -31,7 +31,8 @@ Use Python for initial discovery and data sampling.
 3.  **Document Findings**: Maintain an `analyst_log-YY-MM-DD_HH-MM.md` file for every session.
 
 ## Working Agreements
-- **Python use of UV**: use `uv` to find the Python interpreter and create virtual environments and install packages with `uv pip install`
+- **Python use of UV**: ALWAYS create a virtual environment with `uv venv`. Install packages with `uv pip install`. Do NOT use `uv run`.
+- **Tool Re-use**: ALWAYS search for and re-use existing tools and scripts in current directory before creating new ones.
 - **Script Retention**: Always create and retain scripts (e.g., `analyze_*.py`) in the **current project directory**. **DO NOT** place scripts in `/tmp` or other directories outside the project, as they must be preserved for future reference and reproducibility.
 - **Timestamping**: Rename throwaway files with a `-YY-MM-DD_HH-MM.md` suffix.
 - **Python Style**: Use `orjson`, `polars`, and `duckdb`. Use `uv` for environment management.
