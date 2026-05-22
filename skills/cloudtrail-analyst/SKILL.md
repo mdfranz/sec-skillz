@@ -30,7 +30,7 @@ metadata:
 3.  **Document Actions**: Capture all commands and findings in `analyst_log-YY-MM-DD-HH-MM.md`.
 
 ## Working Agreements
-- **Script Retention**: Always create and retain scripts (e.g., `analyze_*.py`) in the **current project directory**. **DO NOT** place scripts in `/tmp` or other directories outside the project, as they must be preserved for future reference and reproducibility.
+- **Script Retention**: Always create and retain scripts (e.g., `analyze_*.py`) in the **current project directory**. **DO NOT** place scripts in `/tmp` or other directories outside the project, and **NEVER** delete generated helper scripts or analysis code, as they must be preserved for future reference and reproducibility.
 - **Persistence**: Save confident data as a persistent `.db` file.
 - **Memory Safety**: Use `polars.scan_ndjson()` or DuckDB disk spilling for large datasets to prevent OOM.
 - **Python Style**: Use `orjson`, `polars`, and `duckdb`. Use `uv` for environment management.

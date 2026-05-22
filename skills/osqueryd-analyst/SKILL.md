@@ -79,7 +79,7 @@ Use `orjson` for fast line-by-line inspection and schema sampling before buildin
 - **Python environment**: ALWAYS create a virtual environment with `uv venv` and install dependencies with `uv pip install polars orjson`. Do NOT use `uv run`.
 - **Tool re-use**: ALWAYS search for and re-use existing tools and scripts in the current directory before creating new ones.
 - **Data-first retrieval**: ALWAYS check for and use existing `.parquet` files in the current directory before rescanning `osqueryd.results.log`.
-- **Script retention**: Always create and retain scripts such as `analyze_*.py` in the current project directory. Do not place analysis scripts in `/tmp`.
+- **Script retention**: Always create and retain scripts such as `analyze_*.py` in the current project directory. Do not place analysis scripts in `/tmp` and **NEVER** delete generated helper scripts or analysis code.
 - **Data persistence**: Persist intermediate or normalized datasets to Parquet with `polars` (e.g., `sink_parquet`) when the analysis will require repeated filtering, grouping, or joins.
 - **Differential awareness**: NEVER treat all records as current state. Always consider whether a record is `"added"` or `"removed"` before drawing conclusions about system state.
 - **Timestamping**: Rename throwaway notes or scratch markdown files with a `-YY-MM-DD_HH-MM.md` suffix.

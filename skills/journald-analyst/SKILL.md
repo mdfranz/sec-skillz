@@ -69,7 +69,7 @@ Use `orjson` for fast line-by-line inspection and schema sampling before buildin
 - **Python environment**: ALWAYS create a virtual environment with `uv venv` and install dependencies with `uv pip install polars orjson`.
 - **Tool re-use**: ALWAYS search for and re-use existing scripts in the current directory.
 - **Data-First retrieval**: ALWAYS check for and use existing `.parquet` files.
-- **Script retention**: Always create and retain scripts such as `analyze_*.py` in the current project directory.
+- **Script retention**: Always create and retain scripts such as `analyze_*.py` in the current project directory. **NEVER** delete generated helper scripts or analysis code.
 - **Python style**: Prefer `orjson` for streaming JSON parsing and `polars` for filtering and aggregations.
 
 ## Examples
